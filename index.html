@@ -1,246 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Self-Touch Recording</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 20px;
-    }
-    #container {
-      display: inline-block;
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      max-width: 850px;
-    }
-    video {
-      border: 2px solid #ccc;
-      border-radius: 4px;
-      background: black;
-      width: 480px;
-      height: 640px;
-      object-fit: cover;
-    }
-    #videoWrapper {
-      position: relative;
-      display: inline-block;
-    }
-    #overlay {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 480px;
-      height: 640px;
-      pointer-events: none;
-    }
+<meta charset="UTF-8">
+<title>Self-Touch Recording</title>
 
-    /* Silhouette container */
-    #silhouette {
-      position: absolute;
-      left: 50%;
-      top: 8%;
-      transform: translateX(-50%);
-      width: 55%;
-      height: 80%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-    }
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #000;
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 0;
+}
 
-    /* Torso + thighs (one pill-like shape) */
-    #silhouette-body {
-      width: 85%;
-      height: 78%;
-      border-radius: 45% 45% 25% 25%;
-      border: 2px dashed rgba(255,255,255,0.9);
-      box-sizing: border-box;
-      position: relative;
-    }
+#container {
+    margin-top: 20px;
+}
 
-    /* Hips line (suggest seating / hip area) */
-    #silhouette-body::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 55%;
-      transform: translateX(-50%);
-      width: 70%;
-      border-top: 2px dashed rgba(255,255,255,0.6);
-    }
+video {
+    width: 70%;
+    max-width: 700px;
+    border: 3px solid #444;
+    border-radius: 8px;
+}
 
-    /* Optional "lap" guide */
-    #silhouette-lap {
-      margin-top: 6px;
-      width: 65%;
-      height: 10%;
-      border-radius: 50% 50% 60% 60%;
-      border: 2px dashed rgba(255,255,255,0.8);
-      box-sizing: border-box;
-    }
-
-    #overlayText {
-      position: absolute;
-      bottom: 10px;
-      width: 100%;
-      text-align: center;
-      color: white;
-      font-weight: bold;
-      text-shadow: 0 0 5px black;
-      font-size: 15px;
-    }
-
-    #startBtn, #downloadBtn {
-      margin-top: 15px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #startBtn:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-    #timer {
-      margin-top: 10px;
-      font-weight: bold;
-    }
-    #status {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #333;
-    }
-  </style>
-</head>
-<body>
-
-  <div id="container">
-    <h2>Self-Touch Activity Recording</h2>
-    <p>
-      Please position yourself so that your <strong>full torso, hips, and thighs</strong> are visible<br>
-      inside the white dashed silhouette below.<br>
-      Your <strong>face should stay out of the frame</strong> during the entire recording.
-    </p>
-
-    <div id="videoWrapper">
-      <video id="preview" autoplay muted></video>
-      <div id="overlay">
-        <div id="silhouette">
-          <div id="silhouette-body"></div>
-          <div id="silhouette-lap"></div>
-        </div>
-        <div id="overlayText">
-          Align your body with the dashed shape.<br>
-          Face out of the frame, torso + thighs inside.
-        </div>
-      </div>
-    </div>
-
-    <div id="timer">Time remaining: 00:20</div>
-    <button id="startBtn">Start 20-second Recording</button>
-    <button id="downloadBtn" style="display:none;">Download Video</button>
-    <div id="status"></div>
-
-    <p style="margin-top:15px; font-size:14px;">
-      After you download the video, return to the survey and upload it in the next question.
-    </p>
-  </div>
-
-  <script>
-    const preview = document.getElementById('preview');
-    const startBtn = document.getElementById('startBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const timerEl = document.getElementById('timer');
-    const statusEl = document.getElementById('status');
-
-    let mediaRecorder;
-    let recordedChunks = [];
-    let countdownInterval = null;
-
-    // Get participant ID from URL (?pid=...)
-    const params = new URLSearchParams(window.location.search);
-    const participantId = params.get('pid') || 'participant';
-
-    // Ask for camera
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then(stream => {
-        preview.srcObject = stream;
-        mediaRecorder = new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
-          const url = URL.createObjectURL(blob);
-
-          downloadBtn.style.display = "inline-block";
-          downloadBtn.onclick = () => {
-            const now = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `${participantId}_selftouch_${now}.webm`;
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          };
-
-          statusEl.textContent = "Recording complete. Download the video, then return to the survey and upload it.";
-        };
-      })
-      .catch(err => {
-        console.error(err);
-        statusEl.textContent = "Camera access denied. Please allow camera and refresh this page.";
-        startBtn.disabled = true;
-      });
-
-    function startCountdown(seconds) {
-      let remaining = seconds;
-      updateTimer(remaining);
-      countdownInterval = setInterval(() => {
-        remaining--;
-        updateTimer(remaining);
-        if (remaining <= 0) {
-          clearInterval(countdownInterval);
-          stopRecording();
-        }
-      }, 1000);
-    }
-
-    function updateTimer(seconds) {
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      timerEl.textContent = `Time remaining: ${m}:${s}`;
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        statusEl.textContent = "Processing video...";
-      }
-    }
-
-    startBtn.onclick = () => {
-      if (!mediaRecorder) {
-        statusEl.textContent = "Camera not ready. Please wait and try again.";
-        return;
-      }
-      recordedChunks = [];
-      mediaRecorder.start();
-      statusEl.textContent = "Recording started. Please perform the self-touch activity for the full 20 seconds.";
-      startBtn.disabled = true;
-
-      // 20 seconds
-      startCountdown(20);
-    };
-  </script>
-</body>
-</html>
+button {
+    padding: 10px 20px;
+    font-size: 18px;
