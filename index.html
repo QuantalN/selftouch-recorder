@@ -1,81 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Self-Touch Activity Recording</title>
+  <meta charset="UTF-8" />
+  <title>Self-Touch Recording</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
-      background: #f5f5f5;
+      background: #000000;
       margin: 0;
       padding: 20px;
+      color: #ffffff;
     }
+
     #container {
       display: inline-block;
-      background: white;
+      background: #111111;
       padding: 20px;
       border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
       max-width: 900px;
     }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    p {
+      margin: 6px 0;
+    }
+
     #videoWrapper {
       position: relative;
       display: inline-block;
+      margin-top: 10px;
     }
-    #preview {
+
+    /* Video: 3:4 aspect (480x640) */
+    video {
       width: 480px;
       height: 640px;
-      background: black;
-      border-radius: 4px;
-      border: 2px solid #ccc;
       object-fit: cover;
+      background: #000000;
+      border-radius: 4px;
+      border: 2px solid #444444;
     }
 
-    /* FULL-SIZE OVERLAY */
+    /* Overlay covers the entire video area */
     #overlay {
       position: absolute;
-      inset: 0;              /* top:0; right:0; bottom:0; left:0; */
-      pointer-events: none;
-    }
-    #silhouetteImage {
+      top: 0;
+      left: 0;
       width: 100%;
       height: 100%;
-      object-fit: contain;   /* keep body proportions */
-      /* If your SVG is black lines, this inverts them to white */
-      filter: invert(1);
-      opacity: 0.9;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    #overlayText {
-      position: absolute;
-      bottom: 10px;
+    /* Your SVG – scaled to fill the recording area as much as possible */
+    #silhouette {
       width: 100%;
-      text-align: center;
-      color: white;
-      font-weight: bold;
-      text-shadow: 0 0 5px black;
-      font-size: 14px;
+      height: 100%;
+      object-fit: contain; /* preserves aspect ratio, fills as much as possible */
+      opacity: 0.85;       /* slightly transparent so you can still see yourself */
     }
 
-    #startBtn, #downloadBtn {
-      margin-top: 15px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    #startBtn:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
     #timer {
       margin-top: 10px;
       font-weight: bold;
     }
+
     #status {
-      margin-top: 10px;
+      margin-top: 8px;
       font-size: 14px;
-      color: #333;
+    }
+
+    #startBtn,
+    #downloadBtn {
+      margin-top: 12px;
+      margin-right: 4px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      border: none;
+    }
+
+    #startBtn {
+      background: #4caf50;
+      color: #ffffff;
+    }
+
+    #startBtn:disabled {
+      background: #2e7d32;
+      opacity: 0.6;
+      cursor: default;
+    }
+
+    #downloadBtn {
+      background: #2196f3;
+      color: #ffffff;
+      display: none;
+    }
+
+    small {
+      font-size: 12px;
+      color: #cccccc;
     }
   </style>
 </head>
@@ -83,50 +116,54 @@
   <div id="container">
     <h2>Self-Touch Activity Recording</h2>
     <p>
-      Please position yourself so that your <strong>neck, shoulders, torso, hips and upper thighs</strong><br>
-      are inside the white silhouette outline. Your <strong>face should not be visible</strong>.
+      Position yourself so that your <strong>neck, shoulders, torso and upper thighs</strong> align with the body silhouette.<br />
+      Your <strong>face should remain out of the frame</strong> for the entire recording.
     </p>
 
     <div id="videoWrapper">
       <video id="preview" autoplay muted playsinline></video>
+
+      <!-- SVG overlay -->
       <div id="overlay">
-        <!-- your SVG overlay (full-screen over the video) -->
-        <img id="silhouetteImage" src="Silhouette.svg" alt="Body silhouette guide">
-        <div id="overlayText">
-          Align your body with the silhouette.<br>
-          Face out of frame; torso + thighs + hands inside the outline.
-        </div>
+        <!-- Make sure the file name here matches exactly the SVG in your repo -->
+        <img id="silhouette" src="Silhouette.svg" alt="Body silhouette guide" />
       </div>
     </div>
 
     <div id="timer">Time remaining: 00:20</div>
+
     <button id="startBtn">Start 20-second Recording</button>
-    <button id="downloadBtn" style="display:none;">Download Video</button>
+    <button id="downloadBtn">Download Video</button>
+
     <div id="status"></div>
 
-    <p style="margin-top:15px; font-size:14px;">
-      After you download the video, return to the survey and upload it in the next question.
+    <p style="margin-top: 15px;">
+      After downloading the video, return to the survey and upload it in the next question.
     </p>
+    <small>
+      If you are not prompted for camera access, please check your browser settings and reload this page.
+    </small>
   </div>
 
   <script>
-    const preview = document.getElementById('preview');
-    const startBtn = document.getElementById('startBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const timerEl = document.getElementById('timer');
-    const statusEl = document.getElementById('status');
+    const preview = document.getElementById("preview");
+    const startBtn = document.getElementById("startBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const timerEl = document.getElementById("timer");
+    const statusEl = document.getElementById("status");
 
     let mediaRecorder;
     let recordedChunks = [];
     let countdownInterval = null;
 
-    // get participant ID from URL (?pid=...)
+    // Get participant ID from URL (?pid=...)
     const params = new URLSearchParams(window.location.search);
-    const participantId = params.get('pid') || 'participant';
+    const participantId = params.get("pid") || "participant";
 
-    // ask for camera
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then(stream => {
+    // Ask for camera access
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: false })
+      .then((stream) => {
         preview.srcObject = stream;
         mediaRecorder = new MediaRecorder(stream);
 
@@ -140,9 +177,9 @@
 
           downloadBtn.style.display = "inline-block";
           downloadBtn.onclick = () => {
-            const now = new Date().toISOString().replace(/[:.]/g, '-');
+            const now = new Date().toISOString().replace(/[:.]/g, "-");
             const filename = `${participantId}_selftouch_${now}.webm`;
-            const a = document.createElement('a');
+            const a = document.createElement("a");
             a.href = url;
             a.download = filename;
             document.body.appendChild(a);
@@ -150,12 +187,14 @@
             document.body.removeChild(a);
           };
 
-          statusEl.textContent = "Recording complete. Download the video, then return to the survey and upload it.";
+          statusEl.textContent =
+            "Recording complete. Download the video, then return to the survey and upload it.";
         };
       })
-      .catch(err => {
+      .catch((err) => {
         console.error(err);
-        statusEl.textContent = "Camera access denied. Please allow camera use and refresh this page.";
+        statusEl.textContent =
+          "Camera access was denied or not available. Please enable camera permissions and refresh this page.";
         startBtn.disabled = true;
       });
 
@@ -173,8 +212,8 @@
     }
 
     function updateTimer(seconds) {
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
+      const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+      const s = String(seconds % 60).padStart(2, "0");
       timerEl.textContent = `Time remaining: ${m}:${s}`;
     }
 
@@ -187,14 +226,18 @@
 
     startBtn.onclick = () => {
       if (!mediaRecorder) {
-        statusEl.textContent = "Camera not ready. Please wait and try again.";
+        statusEl.textContent =
+          "Camera is not ready yet. Please wait a moment and try again.";
         return;
       }
       recordedChunks = [];
       mediaRecorder.start();
-      statusEl.textContent = "Recording started. Please perform the self-touch activity for the full 20 seconds.";
+      statusEl.textContent =
+        "Recording started. Please perform the self-touch movement for the full 20 seconds.";
       startBtn.disabled = true;
-      startCountdown(20); // 20 seconds
+
+      // 20 seconds
+      startCountdown(20);
     };
   </script>
 </body>
