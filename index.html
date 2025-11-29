@@ -17,7 +17,7 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      max-width: 850px;
+      max-width: 860px;
     }
     #videoWrapper {
       position: relative;
@@ -38,43 +38,7 @@
       transform: translateX(-50%);
       width: 480px;
       height: 640px;
-      pointer-events: none;
-    }
-    /* Simple torso+thighs silhouette: white dashed outline, transparent fill */
-    #silhouette {
-      position: absolute;
-      left: 50%;
-      top: 6%;
-      transform: translateX(-50%);
-      width: 65%;
-      height: 84%;
-      box-sizing: border-box;
-      border-radius: 35% 35% 20% 20%;
-      border: 4px dashed rgba(255,255,255,0.95);
-    }
-    /* Suggest shoulders/neck by narrowing top using inner line */
-    #silhouette::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 0;
-      transform: translateX(-50%);
-      width: 55%;
-      height: 18%;
-      border-bottom: 4px dashed rgba(255,255,255,0.9);
-      border-radius: 0 0 50% 50%;
-      box-sizing: border-box;
-    }
-    /* Suggest hip line */
-    #silhouette::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 55%;
-      transform: translateX(-50%);
-      width: 70%;
-      border-top: 3px dashed rgba(255,255,255,0.85);
-      box-sizing: border-box;
+      pointer-events: none; /* don’t block clicks */
     }
     #overlayText {
       position: absolute;
@@ -84,7 +48,7 @@
       color: white;
       font-weight: bold;
       text-shadow: 0 0 5px black;
-      font-size: 14px;
+      font-size: 15px;
     }
     #startBtn, #downloadBtn {
       margin-top: 15px;
@@ -104,7 +68,6 @@
       margin-top: 10px;
       font-size: 14px;
       color: #333;
-      min-height: 20px;
     }
   </style>
 </head>
@@ -113,18 +76,39 @@
   <div id="container">
     <h2>Self-Touch Activity Recording</h2>
     <p>
-      Please position yourself so that your <strong>full torso, hips, and thighs</strong> are visible<br>
-      inside the white dashed outline below.<br>
+      Please position yourself so that your <strong>full torso, hips, and thighs</strong> are visible inside the outline.<br>
       Your <strong>face should stay out of the frame</strong> during the entire recording.
     </p>
 
     <div id="videoWrapper">
-      <video id="preview" autoplay muted playsinline></video>
+      <video id="preview" autoplay muted></video>
+
+      <!-- SILHOUETTE OVERLAY -->
       <div id="overlay">
-        <div id="silhouette"></div>
+        <svg width="480" height="640" viewBox="0 0 480 640">
+          <!-- shoulders arc -->
+          <path d="M140 170 Q240 110 340 170"
+                fill="none"
+                stroke="white"
+                stroke-width="3"
+                stroke-dasharray="8 6" />
+          <!-- torso + thighs rectangle -->
+          <rect x="150" y="170" width="180" height="360"
+                rx="60" ry="60"
+                fill="none"
+                stroke="white"
+                stroke-width="3"
+                stroke-dasharray="10 7" />
+          <!-- optional hip line -->
+          <line x1="165" y1="330" x2="315" y2="330"
+                stroke="white"
+                stroke-width="3"
+                stroke-dasharray="8 6" />
+        </svg>
+
         <div id="overlayText">
-          Align your body with the dashed outline.<br>
-          Torso + thighs inside, face outside the frame.
+          Align your shoulders and torso with the outline.<br>
+          Torso + thighs inside, face out of frame.
         </div>
       </div>
     </div>
@@ -140,26 +124,54 @@
   </div>
 
   <script>
-    const preview = document.getElementById('preview');
-    const startBtn = document.getElementById('startBtn');
+    const preview     = document.getElementById('preview');
+    const startBtn    = document.getElementById('startBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    const timerEl = document.getElementById('timer');
-    const statusEl = document.getElementById('status');
+    const timerEl     = document.getElementById('timer');
+    const statusEl    = document.getElementById('status');
 
-    let mediaRecorder = null;
+    let mediaRecorder;
     let recordedChunks = [];
     let countdownInterval = null;
-    let stream = null;
 
     // Get participant ID from URL (?pid=...)
-    const params = new URLSearchParams(window.location.search);
+    const params        = new URLSearchParams(window.location.search);
     const participantId = params.get('pid') || 'participant';
 
-    function updateTimer(seconds) {
-      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const s = String(seconds % 60).padStart(2, '0');
-      timerEl.textContent = `Time remaining: ${m}:${s}`;
-    }
+    // Request camera
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => {
+        preview.srcObject = stream;
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) recordedChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const url  = URL.createObjectURL(blob);
+
+          downloadBtn.style.display = "inline-block";
+          downloadBtn.onclick = () => {
+            const now      = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `${participantId}_selftouch_${now}.webm`;
+            const a        = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          };
+
+          statusEl.textContent = "Recording complete. Download the video, then return to the survey and upload it.";
+        };
+      })
+      .catch(err => {
+        console.error(err);
+        statusEl.textContent = "Camera access denied or unavailable. Please allow camera permissions and refresh this page.";
+        startBtn.disabled = true;
+      });
 
     function startCountdown(seconds) {
       let remaining = seconds;
@@ -174,75 +186,30 @@
       }, 1000);
     }
 
+    function updateTimer(seconds) {
+      const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+      const s = String(seconds % 60).padStart(2, '0');
+      timerEl.textContent = `Time remaining: ${m}:${s}`;
+    }
+
     function stopRecording() {
       if (mediaRecorder && mediaRecorder.state === "recording") {
         mediaRecorder.stop();
         statusEl.textContent = "Processing video...";
       }
-      startBtn.disabled = false; // allow re-record if you want later
     }
 
-    async function initAndStartRecording() {
-      try {
-        statusEl.textContent = "Requesting camera access...";
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          statusEl.textContent = "Camera not supported in this browser. Please try a different browser or device.";
-          return;
-        }
-
-        // If we don't already have a stream, request it
-        if (!stream) {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          preview.srcObject = stream;
-        }
-
-        recordedChunks = [];
-        mediaRecorder = new MediaRecorder(stream);
-
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunks.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          const blob = new Blob(recordedChunks, { type: "video/webm" });
-          const url = URL.createObjectURL(blob);
-
-          downloadBtn.style.display = "inline-block";
-          downloadBtn.onclick = () => {
-            const now = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `${participantId}_selftouch_${now}.webm`;
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          };
-
-          statusEl.textContent = "Recording complete. Download the video, then return to the survey and upload it.";
-        };
-
-        // Start recording
-        mediaRecorder.start();
-        statusEl.textContent = "Recording started. Please perform the self-touch activity for the full 20 seconds.";
-        startBtn.disabled = true;
-        startCountdown(20); // 20 seconds
-
-      } catch (err) {
-        console.error(err);
-        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-          statusEl.textContent = "Camera access was denied. Please allow camera permissions for this site in your browser settings and reload the page.";
-        } else if (err.name === "NotFoundError" || err.name === "OverconstrainedError") {
-          statusEl.textContent = "No suitable camera was found. Please check your webcam and try again.";
-        } else {
-          statusEl.textContent = "An error occurred while trying to access your camera. Please refresh the page or try a different browser.";
-        }
+    startBtn.onclick = () => {
+      if (!mediaRecorder) {
+        statusEl.textContent = "Camera not ready. Please wait a moment and try again.";
+        return;
       }
-    }
-
-    startBtn.addEventListener('click', () => {
-      initAndStartRecording();
-    });
+      recordedChunks = [];
+      mediaRecorder.start();
+      statusEl.textContent = "Recording started. Please perform the self-touch activity for the full 20 seconds.";
+      startBtn.disabled = true;
+      startCountdown(20); // 20 seconds
+    };
   </script>
 </body>
 </html>
