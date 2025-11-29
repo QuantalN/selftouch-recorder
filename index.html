@@ -17,11 +17,7 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      max-width: 860px;
-    }
-    #videoWrapper {
-      position: relative;
-      display: inline-block;
+      max-width: 850px;
     }
     video {
       border: 2px solid #ccc;
@@ -31,6 +27,10 @@
       height: 640px;
       object-fit: cover;
     }
+    #videoWrapper {
+      position: relative;
+      display: inline-block;
+    }
     #overlay {
       position: absolute;
       top: 0;
@@ -38,8 +38,9 @@
       transform: translateX(-50%);
       width: 480px;
       height: 640px;
-      pointer-events: none; /* don’t block clicks */
+      pointer-events: none;
     }
+    /* text on top of video */
     #overlayText {
       position: absolute;
       bottom: 10px;
@@ -50,6 +51,7 @@
       text-shadow: 0 0 5px black;
       font-size: 15px;
     }
+
     #startBtn, #downloadBtn {
       margin-top: 15px;
       padding: 10px 20px;
@@ -76,34 +78,67 @@
   <div id="container">
     <h2>Self-Touch Activity Recording</h2>
     <p>
-      Please position yourself so that your <strong>full torso, hips, and thighs</strong> are visible inside the outline.<br>
+      Please position yourself so that your <strong>full torso, hips, and thighs</strong> are visible
+      inside the dashed body outline.<br>
       Your <strong>face should stay out of the frame</strong> during the entire recording.
     </p>
 
     <div id="videoWrapper">
-      <video id="preview" autoplay muted></video>
+      <video id="preview" autoplay muted playsinline></video>
 
-      <!-- SILHOUETTE OVERLAY -->
+      <!-- Overlay with dashed white silhouette -->
       <div id="overlay">
-        <svg width="480" height="640" viewBox="0 0 480 640">
-          <!-- shoulders arc -->
-          <path d="M140 170 Q240 110 340 170"
-                fill="none"
-                stroke="white"
-                stroke-width="3"
-                stroke-dasharray="8 6" />
-          <!-- torso + thighs rectangle -->
-          <rect x="150" y="170" width="180" height="360"
-                rx="60" ry="60"
-                fill="none"
-                stroke="white"
-                stroke-width="3"
-                stroke-dasharray="10 7" />
-          <!-- optional hip line -->
-          <line x1="165" y1="330" x2="315" y2="330"
-                stroke="white"
-                stroke-width="3"
-                stroke-dasharray="8 6" />
+        <svg viewBox="0 0 200 400" width="100%" height="100%">
+          <g fill="none"
+             stroke="rgba(255,255,255,0.95)"
+             stroke-width="3"
+             stroke-dasharray="8 6"
+             stroke-linecap="round"
+             stroke-linejoin="round">
+
+            <!-- Shoulders / torso / hips / thighs (left side) -->
+            <path d="
+              M100 70
+              Q 80 72 65 90
+              Q 50 110 52 140
+              L 55 190
+              Q 57 220 62 245
+              Q 68 270 73 295
+              Q 78 320 82 345
+              Q 85 365 89 388
+            "/>
+
+            <!-- Shoulders / torso / hips / thighs (right side) -->
+            <path d="
+              M100 70
+              Q 120 72 135 90
+              Q 150 110 148 140
+              L 145 190
+              Q 143 220 138 245
+              Q 132 270 127 295
+              Q 122 320 118 345
+              Q 115 365 111 388
+            "/>
+
+            <!-- Inner leg line -->
+            <path d="M100 180 L100 388"/>
+
+            <!-- Left arm -->
+            <path d="
+              M60 130
+              Q 48 150 44 180
+              Q 40 205 42 230
+              Q 44 250 48 265
+            "/>
+
+            <!-- Right arm -->
+            <path d="
+              M140 130
+              Q 152 150 156 180
+              Q 160 205 158 230
+              Q 156 250 152 265
+            "/>
+          </g>
         </svg>
 
         <div id="overlayText">
@@ -124,21 +159,21 @@
   </div>
 
   <script>
-    const preview     = document.getElementById('preview');
-    const startBtn    = document.getElementById('startBtn');
+    const preview = document.getElementById('preview');
+    const startBtn = document.getElementById('startBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    const timerEl     = document.getElementById('timer');
-    const statusEl    = document.getElementById('status');
+    const timerEl = document.getElementById('timer');
+    const statusEl = document.getElementById('status');
 
     let mediaRecorder;
     let recordedChunks = [];
     let countdownInterval = null;
 
     // Get participant ID from URL (?pid=...)
-    const params        = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.search);
     const participantId = params.get('pid') || 'participant';
 
-    // Request camera
+    // Ask for camera
     navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       .then(stream => {
         preview.srcObject = stream;
@@ -150,13 +185,13 @@
 
         mediaRecorder.onstop = () => {
           const blob = new Blob(recordedChunks, { type: "video/webm" });
-          const url  = URL.createObjectURL(blob);
+          const url = URL.createObjectURL(blob);
 
           downloadBtn.style.display = "inline-block";
           downloadBtn.onclick = () => {
-            const now      = new Date().toISOString().replace(/[:.]/g, '-');
+            const now = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `${participantId}_selftouch_${now}.webm`;
-            const a        = document.createElement('a');
+            const a = document.createElement('a');
             a.href = url;
             a.download = filename;
             document.body.appendChild(a);
@@ -164,12 +199,14 @@
             document.body.removeChild(a);
           };
 
-          statusEl.textContent = "Recording complete. Download the video, then return to the survey and upload it.";
+          statusEl.textContent =
+            "Recording complete. Download the video, then return to the survey and upload it.";
         };
       })
       .catch(err => {
         console.error(err);
-        statusEl.textContent = "Camera access denied or unavailable. Please allow camera permissions and refresh this page.";
+        statusEl.textContent =
+          "Camera access was blocked. Please allow camera access and refresh this page.";
         startBtn.disabled = true;
       });
 
@@ -201,14 +238,17 @@
 
     startBtn.onclick = () => {
       if (!mediaRecorder) {
-        statusEl.textContent = "Camera not ready. Please wait a moment and try again.";
+        statusEl.textContent = "Camera not ready. Please wait and try again.";
         return;
       }
       recordedChunks = [];
       mediaRecorder.start();
-      statusEl.textContent = "Recording started. Please perform the self-touch activity for the full 20 seconds.";
+      statusEl.textContent =
+        "Recording started. Please perform the self-touch activity for the full 20 seconds.";
       startBtn.disabled = true;
-      startCountdown(20); // 20 seconds
+
+      // 20 seconds
+      startCountdown(20);
     };
   </script>
 </body>
